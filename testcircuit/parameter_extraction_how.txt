@@ -1,0 +1,543 @@
+MOS PARAMETER SCRIPTS EXPLAINED
+sky130A, nfet_01v8 and pfet_01v8, in xschem and ngspice
+
+This guide explains four scripts:
+
+  Script 1  NMOS threshold voltage (Vth)
+  Script 2  PMOS threshold voltage (Vth)
+  Script 3  NMOS r0, VA and lambda
+  Script 4  PMOS r0, VA and lambda
+
+It then shows how to write your own.
+
+
+============================================================
+PART 1: THE BASIC IDEA
+============================================================
+
+A simulation script works like an experiment on a lab bench:
+
+  1. Set the voltages that stay fixed.
+  2. Sweep one voltage and record the results.
+  3. Do the calculation.
+  4. Print the numbers and plot the curves.
+
+A transistor does not hand us its parameters directly.
+We apply voltages, record the current, and calculate the
+parameters from the shape of the current curve.
+
+Every script here uses a STRAIGHT-LINE FIT. We select a part
+of a curve that is nearly straight, fit a line to it, and
+read the parameter from that line.
+
+  Vth experiment:  fit ID against VGS at a small VDS.
+  r0 experiment:   fit ID against VDS in saturation.
+
+
+============================================================
+PART 2: THE CIRCUIT THE SCRIPTS EXPECT
+============================================================
+
+NMOS (M1): source at ground
+  Gate net        g_n     set by source Vg_n
+  Drain net       d_n     set by source Vd_n
+  Body net        b_n     set by source Vb_n
+
+PMOS (M2): source at ground
+  Gate net        g_p     set by source Vg_p
+  Drain net       d_p     set by source Vd_p
+  Body net        b_p     set by source Vb_p
+
+All six sources have a default value of 0.
+The body sources stay at 0 in all four scripts.
+
+The PMOS source is at ground, so its gate and drain voltages
+are NEGATIVE. For example, VGS = -1.3 V is the same bias as
+VSG = 1.3 V. The scripts use absolute values, so the printed
+results are positive and easier to compare.
+
+Only one script should be active at a time.
+To turn a script off, add this to its code block attributes, or uncomment it, if it is in there already:
+
+  spice_ignore=true
+
+To turn it on, remove that text. Save, click Netlist,
+then click Simulate.
+
+
+============================================================
+PART 3: THE COMMANDS YOU NEED
+============================================================
+
+.control
+  Starts a list of commands for ngspice to carry out in order.
+
+.endc
+  Ends that list.
+
+alter SOURCE VALUE
+  Changes a source for this run.
+  Example: alter Vd_n 0.05 sets Vd_n to 50 mV.
+
+dc SOURCE START STOP STEP
+  Sweeps one source and solves the circuit at every step.
+  Example: dc Vg_n 0 1.8 0.005
+  This goes from 0 V to 1.8 V in 5 mV steps.
+  To sweep downward, use a negative step:
+  dc Vg_p 0 -1.8 -0.005
+
+  Each sweep is stored as a set of results.
+  The first is called dc1, the second dc2, and so on.
+  dc1.id means "id from the first sweep".
+
+let NAME = CALCULATION
+  Calculates something and stores it under a name.
+  NAME can be a list of values or a single number.
+  Example: let r0 = 1/slope
+
+v(NET)
+  Reads the voltage at a NET. Use the net name, such as g_n.
+
+i(SOURCE)
+  Reads the current through a voltage SOURCE, such as Vd_n.
+  Use the source name, not a net name.
+
+abs(X)
+  Removes the minus sign.
+
+mean(X)
+  Calculates the average of all the values in X.
+
+vecmax(X)
+  Finds the largest value in X.
+
+print A B C
+  Shows the values in the ngspice window.
+
+plot A B vs C
+  Draws A and B on the vertical axis against C.
+
+ylimit LOW HIGH
+  Optional part of plot. Sets the vertical axis range.
+
+$&NAME
+  Inserts the value of NAME into a command.
+  It is used in ylimit because ylimit needs a number.
+
+
+============================================================
+PART 4: THE STRAIGHT-LINE FIT
+============================================================
+
+All four scripts use these four lines:
+
+  let xm = mean(x)
+  let ym = mean(y)
+  let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+
+  and a formula that uses slope, xm and ym.
+
+x holds the horizontal values and y the vertical values.
+xm and ym are their averages.
+
+slope is the least-squares slope: the slope of the straight
+line that lies closest to all the points in the fit range.
+
+You do not need to memorize the formula. It always works
+in the same way. Put your data in x and y, then copy it.
+
+The fitted line always passes through the point (xm, ym).
+This lets us write its equation as:
+
+  y = ym + slope*(x - xm)
+
+To find where the line reaches zero current, set y = 0:
+
+  x = xm - ym/slope
+
+
+============================================================
+PART 5: SCRIPT 1, NMOS Vth
+============================================================
+
+GOAL
+Find the VGS at which the straight part of ID-VGS, measured
+at a small VDS, extrapolates to zero current.
+
+WHY VDS IS SMALL
+At 50 mV, the channel is nearly uniform from source to drain.
+The device acts like a resistor controlled by VGS, and ID
+rises close to a straight line above threshold.
+
+SCRIPT
+
+.control
+alter Vd_n 0.05
+dc Vg_n 0 1.8 0.005
+let vgs = v(g_n)
+let id = abs(i(Vd_n))
+dc Vg_n 0.9 1.15 0.005
+let x = v(g_n)
+let y = abs(i(Vd_n))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let vgs0 = xm - ym/slope
+let vth = vgs0 - 0.05/2
+print slope vgs0 vth
+let fit = slope*(dc1.vgs-vgs0)
+let idmax = vecmax(dc1.id)
+plot dc1.id fit vs dc1.vgs ylimit 0 $&idmax
+.endc
+
+LINE BY LINE
+
+alter Vd_n 0.05
+  Sets VDS to 50 mV.
+
+dc Vg_n 0 1.8 0.005
+  Sweeps VGS across the full range. The results go in dc1.
+  We use this sweep for the plot.
+
+let vgs = v(g_n)
+  Stores the gate voltage at every step.
+
+let id = abs(i(Vd_n))
+  Stores the drain current as a positive value.
+
+dc Vg_n 0.9 1.15 0.005
+  Sweeps only the straight part of the curve.
+  The results go in dc2. We use this sweep for the fit.
+
+let x = v(g_n)
+  Stores VGS from dc2 as the horizontal fit data.
+
+let y = abs(i(Vd_n))
+  Stores ID from dc2 as the vertical fit data.
+
+let xm = mean(x)
+  Finds the average VGS in the fit range.
+
+let ym = mean(y)
+  Finds the average ID in the fit range.
+
+let slope = ...
+  Finds the slope of the best straight line.
+  Here, this slope is the transconductance in A/V.
+
+let vgs0 = xm - ym/slope
+  Finds where the line reaches ID = 0.
+
+let vth = vgs0 - 0.05/2
+  Subtracts VDS/2, which this method requires.
+  0.05 is the same value as in the alter line.
+  If you change one, change the other too.
+
+print slope vgs0 vth
+  Prints the slope, the zero-current point, and Vth.
+
+let fit = slope*(dc1.vgs-vgs0)
+  Calculates the fitted line at every VGS in the full sweep.
+
+let idmax = vecmax(dc1.id)
+  Finds the largest current in the full sweep.
+
+plot dc1.id fit vs dc1.vgs ylimit 0 $&idmax
+  Plots the real curve and the line. The vertical axis stops
+  at zero, so the line is not shown going far below zero.
+
+WHAT TO CHECK
+The line should follow the curve inside the fit range.
+If it does not, move the range to the straightest part.
+
+
+============================================================
+PART 6: SCRIPT 2, PMOS Vth
+============================================================
+
+GOAL
+The same as Script 1, using the PMOS.
+
+SCRIPT
+
+.control
+alter Vd_p -0.05
+dc Vg_p 0 -1.8 -0.005
+let vgs = -v(g_p)
+let id = abs(i(Vd_p))
+dc Vg_p -1.0 -1.3 -0.005
+let x = -v(g_p)
+let y = abs(i(Vd_p))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let vgs0 = xm - ym/slope
+let vth = vgs0 - 0.05/2
+print slope vgs0 vth
+let fit = slope*(dc1.vgs-vgs0)
+let idmax = vecmax(dc1.id)
+plot dc1.id fit vs dc1.vgs ylimit 0 $&idmax
+.endc
+
+WHAT IS DIFFERENT FROM THE NMOS
+
+alter Vd_p -0.05
+  Makes the drain 50 mV below the source at ground.
+
+dc Vg_p 0 -1.8 -0.005
+  Sweeps the gate down from 0 V to -1.8 V.
+
+dc Vg_p -1.0 -1.3 -0.005
+  Fits a range of |VGS| from 1.0 V to 1.3 V.
+
+let vgs = -v(g_p)
+let x = -v(g_p)
+  The minus sign turns the negative gate voltage into |VGS|.
+
+The printed vth is the magnitude, |Vth|.
+The actual PMOS threshold voltage is negative.
+
+
+============================================================
+PART 7: SCRIPT 3, NMOS r0, VA AND LAMBDA
+============================================================
+
+GOAL
+Measure how much ID still rises with VDS in saturation.
+
+THE IDEA
+An ideal current source would have a flat ID-VDS line.
+A real transistor has a small slope in saturation.
+
+  slope = gds
+  r0 = 1/gds
+
+If we extend the fitted line to the left, it reaches zero
+current at VDS = -VA. VA is the Early voltage.
+
+  lambda = 1/VA
+
+SCRIPT
+
+.control
+alter Vg_n 1.0
+dc Vd_n 0 1.8 0.005
+let vds = v(d_n)
+let id = abs(i(Vd_n))
+dc Vd_n 0.7 1.1 0.005
+let x = v(d_n)
+let y = abs(i(Vd_n))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let r0 = 1/slope
+let va = ym/slope - xm
+let lambda = 1/va
+print ym r0 va lambda
+let fit = ym + slope*(dc1.vds-xm)
+plot dc1.id fit vs dc1.vds
+.endc
+
+LINE BY LINE
+
+alter Vg_n 1.0
+  Fixes VGS at 1.0 V, so only VDS changes.
+
+dc Vd_n 0 1.8 0.005
+  Sweeps VDS across the full range and stores it in dc1.
+  This gives the output curve for the plot.
+
+let vds = v(d_n)
+  Stores VDS at every step.
+
+let id = abs(i(Vd_n))
+  Stores the drain current as a positive value.
+
+dc Vd_n 0.7 1.1 0.005
+  Sweeps only the saturation range and stores it in dc2.
+
+let x = v(d_n)
+let y = abs(i(Vd_n))
+  Stores the fit data.
+
+let xm = mean(x)
+let ym = mean(y)
+  Finds the averages. ym is the current near VDS = 0.9 V.
+
+let slope = ...
+  Finds the line's slope, gds, in A/V.
+
+let r0 = 1/slope
+  Converts gds into r0, in ohms.
+
+let va = ym/slope - xm
+  Finds the VDS distance from the zero-current point to 0 V.
+  The line reaches zero current at VDS = -VA.
+
+let lambda = 1/va
+  Calculates lambda, in 1/V.
+
+print ym r0 va lambda
+  Prints the current and the three results.
+
+let fit = ym + slope*(dc1.vds-xm)
+  Calculates the fitted line across the full VDS sweep.
+
+plot dc1.id fit vs dc1.vds
+  Plots the real curve and the line.
+
+WHAT TO CHECK
+The line should match the curve in saturation and move away
+from it at low VDS. Check that the fit range is in saturation.
+A quick guide is VDS > VGS - Vth, with some margin.
+
+
+============================================================
+PART 8: SCRIPT 4, PMOS r0, VA AND LAMBDA
+============================================================
+
+GOAL
+The same as Script 3, using the PMOS.
+
+SCRIPT
+
+.control
+alter Vg_p -1.3
+dc Vd_p 0 -1.8 -0.005
+let vds = -v(d_p)
+let id = abs(i(Vd_p))
+dc Vd_p -0.7 -1.1 -0.005
+let x = -v(d_p)
+let y = abs(i(Vd_p))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let r0 = 1/slope
+let va = ym/slope - xm
+let lambda = 1/va
+print ym r0 va lambda
+let fit = ym + slope*(dc1.vds-xm)
+plot dc1.id fit vs dc1.vds
+.endc
+
+WHAT IS DIFFERENT FROM THE NMOS
+
+alter Vg_p -1.3
+  Sets |VGS| to 1.3 V.
+
+dc Vd_p 0 -1.8 -0.005
+  Sweeps the drain down from 0 V to -1.8 V.
+
+dc Vd_p -0.7 -1.1 -0.005
+  Fits a range of |VDS| from 0.7 V to 1.1 V.
+
+let vds = -v(d_p)
+let x = -v(d_p)
+  The minus sign turns the negative drain voltage into |VDS|.
+
+
+============================================================
+PART 9: WRITING YOUR OWN SCRIPT
+============================================================
+
+Answer these questions first:
+
+  1. Which parameter do I want?
+  2. Which curve shows it?
+  3. Which voltage stays fixed?
+  4. Which voltage is swept?
+  5. Which part of the curve is straight?
+  6. What does the slope or line crossing tell me?
+
+Then fill in this template. Replace each word in capitals.
+
+.control
+alter FIXED_SOURCE FIXED_VALUE
+dc SWEPT_SOURCE START STOP STEP
+let xfull = v(SWEPT_NET)
+let id = abs(i(CURRENT_SOURCE))
+dc SWEPT_SOURCE FIT_START FIT_STOP STEP
+let x = v(SWEPT_NET)
+let y = abs(i(CURRENT_SOURCE))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let result = YOUR_CALCULATION
+print slope result
+let fit = ym + slope*(dc1.xfull-xm)
+plot dc1.id fit vs dc1.xfull
+.endc
+
+For a PMOS, use -v(SWEPT_NET) and negative sweep values.
+
+GOOD HABITS
+
+  - Change one thing at a time.
+  - Plot the data before trusting a number.
+  - Check that the fit range is really straight.
+  - Check the units.
+  - Compare the result with a hand estimate.
+  - Write down W, L, bias, and the fit range with every result.
+
+
+============================================================
+PART 10: COMMON ERRORS
+============================================================
+
+Vector is not available
+  A name in the script does not match the schematic.
+  Check net names in v() and source names in i().
+  Open the netlist to see the exact names.
+  At the ngspice prompt, type display to list saved signals.
+
+No such vector dc1.id
+  Something failed earlier. Read the FIRST error, not the last.
+
+ylimit: not enough parameters
+  idmax was not calculated, usually because of an earlier error.
+
+Current is far too large
+  Check that the body source is 0.
+  Check for wiring mistakes and joined nets.
+
+A change has no effect
+  Save the schematic and click Netlist again.
+
+The plot shows old data or several results
+  Check that only one script is active.
+  Close ngspice and run it again.
+
+
+============================================================
+PART 11: EXPECTED VALUES
+============================================================
+
+These were simulated at W = 1 um with typical models.
+Small differences are normal. They depend on the PDK version.
+
+Vth, with the fit ranges shown in the scripts at L = 0.15 um:
+
+  NMOS  L = 0.15 um  slope = 80.7 uS  Vth = 0.752 V
+  PMOS  L = 0.15 um  slope = 16.6 uS  |Vth| = 0.757 V
+
+Vth at L = 1 um, with a different fit range:
+
+  NMOS  fit 0.8 to 1.1 V    slope = 11.8 uS  Vth = 0.612 V
+  PMOS  fit 1.15 to 1.45 V  slope = 3.51 uS  |Vth| = 0.952 V
+
+r0, VA and lambda:
+
+  NMOS, VGS = 1.0 V
+    L = 1 um     ID = 18.8 uA   r0 = 707 kohm
+                 VA = 12.4 V    lambda = 0.081 1/V
+    L = 0.15 um  ID = 66.9 uA   r0 = 40.1 kohm
+                 VA = 1.78 V    lambda = 0.56 1/V
+
+  PMOS, |VGS| = 1.3 V
+    L = 1 um     ID = 4.49 uA   r0 = 7.99 Mohm
+                 VA = 35.0 V    lambda = 0.029 1/V
+    L = 0.15 um  ID = 63.1 uA   r0 = 37.5 kohm
+                 VA = 1.47 V    lambda = 0.68 1/V
+
+If you change W, L, or the bias, the values change too.
+Always inspect the plot, and move the fit range if needed.
