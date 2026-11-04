@@ -23,7 +23,7 @@ N -50 -150 140 -150 {lab=b_n}
 N 140 -210 140 -150 {lab=b_n}
 C {sky130_fd_pr/nfet_01v8.sym} -70 -150 0 0 {name=M1
 W=1
-L=0.8
+L=0.15
 nf=1 
 mult=1
 ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
@@ -156,7 +156,7 @@ let fit = ym + slope*(dc1.vds-xm)
 plot dc1.id fit vs dc1.vds
 .endc
 " }
-C {devices/code_shown.sym} 300 150 0 0 {name=VA_lamda_r0_extraction_for_PMOS
+C {devices/code_shown.sym} 350 150 0 0 {name=VA_lamda_r0_extraction_for_PMOS
 only_toplevel=true
 *spice_ignore=true
 value="* this option enables mos model bin 
