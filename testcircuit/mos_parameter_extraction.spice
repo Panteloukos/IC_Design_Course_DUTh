@@ -1,6 +1,6 @@
 ** sch_path: /foss/designs/design_course/IC_Design_Course_DuTH/testcircuit/mos_parameter_extraction.sch
 **.subckt mos_parameter_extraction
-XM1 d_n g_n 0 b_n sky130_fd_pr__nfet_01v8 L=0.8 W=1 nf=1 ad=0.29 as=0.29 pd=2.58 ps=2.58 nrd=0.29 nrs=0.29 sa=0 sb=0 sd=0 mult=1
+XM1 d_n g_n 0 b_n sky130_fd_pr__nfet_01v8 L=0.15 W=1 nf=1 ad=0.29 as=0.29 pd=2.58 ps=2.58 nrd=0.29 nrs=0.29 sa=0 sb=0 sd=0 mult=1
 XM2 d_p g_p 0 b_p sky130_fd_pr__pfet_01v8 L=0.15 W=1 nf=1 ad=0.29 as=0.29 pd=2.58 ps=2.58 nrd=0.29 nrs=0.29 sa=0 sb=0 sd=0 mult=1
 Vg_n g_n 0 0
 Vd_n d_n 0 0
@@ -17,24 +17,24 @@ Vb_p b_p 0 0
 * this option enables mos model bin
 * selection based on W/NF instead of W
 
-*FOR NMOS.
+*FOR PMOS.
 .control
-alter Vd_n 0.05
-dc Vg_n 0 1.8 0.005
-let vgs = v(g_n)
-let id = abs(i(Vd_n))
-dc Vg_n 0.9 1.1 0.005
-let x = v(g_n)
-let y = abs(i(Vd_n))
+alter Vg_p -1.3
+dc Vd_p 0 -1.8 -0.005
+let vds = -v(d_p)
+let id = abs(i(Vd_p))
+dc Vd_p -0.7 -1.1 -0.005
+let x = -v(d_p)
+let y = abs(i(Vd_p))
 let xm = mean(x)
 let ym = mean(y)
 let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
-let vgs0 = xm - ym/slope
-let vth = vgs0 - 0.05/2
-print slope vgs0 vth
-let fit = slope*(dc1.vgs-vgs0)
-let idmax = vecmax(dc1.id)
-plot dc1.id fit vs dc1.vgs ylimit 0 $&idmax
+let r0 = 1/slope
+let va = ym/slope - xm
+let lambda = 1/va
+print ym r0 va lambda
+let fit = ym + slope*(dc1.vds-xm)
+plot dc1.id fit vs dc1.vds
 .endc
 
 

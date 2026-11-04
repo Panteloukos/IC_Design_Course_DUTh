@@ -71,9 +71,9 @@ C {vsource.sym} -50 280 0 0 {name=Vd_p value=0 savecurrent=false}
 C {gnd.sym} -50 310 0 0 {name=l7 lab=0}
 C {vsource.sym} 50 200 0 0 {name=Vb_p value=0 savecurrent=false}
 C {gnd.sym} 50 230 0 0 {name=l8 lab=0}
-C {devices/code_shown.sym} -770 -370 0 0 {name=NGSPICE
+C {devices/code_shown.sym} -770 -370 0 0 {name= V_threshold_extraction_for_NMOS
 only_toplevel=true
-*spice_ignore=true
+spice_ignore=true
 value="* this option enables mos model bin 
 * selection based on W/NF instead of W
 
@@ -103,7 +103,7 @@ C {lab_pin.sym} -130 130 0 0 {name=p4 sig_type=std_logic lab=g_p}
 C {lab_pin.sym} 50 110 0 0 {name=p5 sig_type=std_logic lab=b_p}
 C {lab_pin.sym} -50 220 0 0 {name=p6 sig_type=std_logic lab=d_p}
 C {lab_pin.sym} 140 -210 0 0 {name=p3 sig_type=std_logic lab=b_n}
-C {devices/code_shown.sym} -780 120 0 0 {name=NGSPICE1
+C {devices/code_shown.sym} -780 120 0 0 {name=V_threshold_extraction_for_PMOS
 only_toplevel=true
 spice_ignore=true
 value="* this option enables mos model bin 
@@ -128,5 +128,57 @@ print slope vgs0 vth
 let fit = slope*(dc1.vgs-vgs0)
 let idmax = vecmax(dc1.id)
 plot dc1.id fit vs dc1.vgs ylimit 0 $&idmax
+.endc
+" }
+C {devices/code_shown.sym} 360 -360 0 0 {name=VA_lamda_r0_extraction_for_NMOS
+only_toplevel=true
+spice_ignore=true
+value="* this option enables mos model bin 
+* selection based on W/NF instead of W
+
+*FOR NMOS.
+.control
+alter Vg_n 1.0
+dc Vd_n 0 1.8 0.005
+let vds = v(d_n)
+let id = abs(i(Vd_n))
+dc Vd_n 0.7 1.4 0.005
+let x = v(d_n)
+let y = abs(i(Vd_n))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let r0 = 1/slope
+let va = ym/slope - xm
+let lambda = 1/va
+print ym r0 va lambda
+let fit = ym + slope*(dc1.vds-xm)
+plot dc1.id fit vs dc1.vds
+.endc
+" }
+C {devices/code_shown.sym} 300 150 0 0 {name=VA_lamda_r0_extraction_for_PMOS
+only_toplevel=true
+*spice_ignore=true
+value="* this option enables mos model bin 
+* selection based on W/NF instead of W
+
+*FOR PMOS.
+.control
+alter Vg_p -1.3
+dc Vd_p 0 -1.8 -0.005
+let vds = -v(d_p)
+let id = abs(i(Vd_p))
+dc Vd_p -0.7 -1.1 -0.005
+let x = -v(d_p)
+let y = abs(i(Vd_p))
+let xm = mean(x)
+let ym = mean(y)
+let slope = mean((x-xm)*(y-ym))/mean((x-xm)*(x-xm))
+let r0 = 1/slope
+let va = ym/slope - xm
+let lambda = 1/va
+print ym r0 va lambda
+let fit = ym + slope*(dc1.vds-xm)
+plot dc1.id fit vs dc1.vds
 .endc
 " }
