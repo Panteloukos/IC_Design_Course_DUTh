@@ -66,7 +66,7 @@ value="
 
 .control
   * Save only your specific nets (faster & smaller .raw file than 'save all')
-  save v(Vin1) v(Vin2) v(Vout)
+  save v(Vin1) v(Vin2) v(Vout) i(Vdd)
 
   * Run transient analysis: <step_size> <stop_time>
   * Example below: 10ns step up to 5us (good for a 1 MHz sine wave)
@@ -75,6 +75,7 @@ value="
   * Option A: Open ngspice's built-in interactive plot window
   plot v(Vout)
   plot v(Vin1) v(Vin2)
+	plot i(Vdd)
   * Option B: Write data to a .raw file so you can view it inside xschem
   *write tran_sim.raw
 .endc
