@@ -17,32 +17,32 @@ N -100 -240 100 -240 {lab=Vdd}
 N 100 -240 100 -200 {lab=Vdd}
 N 100 -240 300 -240 {lab=Vdd}
 N 390 -240 390 -200 {lab=Vdd}
-N 390 -140 390 110 {lab=#net4}
+N 390 -140 390 110 {lab=Vout}
 N 100 -60 200 -60 {lab=#net3}
-N 350 -60 390 -60 {lab=#net4}
+N 350 -60 390 -60 {lab=Vout}
 N 160 -170 260 -170 {lab=#net3}
 N 160 -170 160 -60 {lab=#net3}
 N -0 170 0 200 {lab=0}
 N 390 170 390 200 {lab=0}
 N -290 170 -290 200 {lab=0}
-N -360 140 -330 140 {lab=#net5}
-N -360 80 -360 140 {lab=#net5}
-N -360 80 -290 80 {lab=#net5}
-N -290 80 -290 110 {lab=#net5}
+N -360 140 -330 140 {lab=#net4}
+N -360 80 -360 140 {lab=#net4}
+N -360 80 -290 80 {lab=#net4}
+N -290 80 -290 110 {lab=#net4}
 N 30 140 30 180 {lab=0}
 N 420 140 420 180 {lab=0}
 N -290 140 -260 140 {lab=0}
 N -260 140 -260 180 {lab=0}
 N -290 180 -260 180 {lab=0}
-N -180 140 -40 140 {lab=#net5}
-N -180 100 -180 140 {lab=#net5}
-N -290 90 -180 90 {lab=#net5}
-N -180 90 240 90 {lab=#net5}
-N 330 100 330 140 {lab=#net5}
-N 330 140 350 140 {lab=#net5}
-N -180 90 -180 100 {lab=#net5}
-N 330 90 330 100 {lab=#net5}
-N -290 -60 -290 80 {lab=#net5}
+N -180 140 -40 140 {lab=#net4}
+N -180 100 -180 140 {lab=#net4}
+N -290 90 -180 90 {lab=#net4}
+N -180 90 240 90 {lab=#net4}
+N 330 100 330 140 {lab=#net4}
+N 330 140 350 140 {lab=#net4}
+N -180 90 -180 100 {lab=#net4}
+N 330 90 330 100 {lab=#net4}
+N -290 -60 -290 80 {lab=#net4}
 N -290 -240 -290 -120 {lab=Vdd}
 N -290 -240 -100 -240 {lab=Vdd}
 N -680 10 -680 40 {lab=Vdd}
@@ -74,9 +74,13 @@ N 0 180 30 180 {lab=0}
 N 390 140 420 140 {lab=0}
 N 390 180 420 180 {lab=0}
 N 300 -240 390 -240 {lab=Vdd}
-N 240 90 330 90 {lab=#net5}
+N 240 90 330 90 {lab=#net4}
 N 260 -170 350 -170 {lab=#net3}
-N 260 -60 290 -60 {lab=#net6}
+N 260 -60 290 -60 {lab=#net5}
+N 390 -60 560 -60 {lab=Vout}
+N 560 -60 560 -30 {lab=Vout}
+N 560 -110 560 -60 {lab=Vout}
+N 540 -110 560 -110 {lab=Vout}
 C {/foss/pdks/sky130A/libs.tech/xschem/sky130_fd_pr/nfet_01v8_lvt.sym} -120 0 0 0 {name=M1
 W=4.8
 L=0.8
@@ -92,7 +96,7 @@ model=nfet_01v8_lvt
 spiceprefix=X
 }
 C {sky130_fd_pr/pfet_01v8.sym} -80 -170 0 1 {name=M3
-W=10.4
+W=11.2
 L=0.8
 nf=1
 mult=1
@@ -134,7 +138,7 @@ model=nfet_01v8_lvt
 spiceprefix=X
 }
 C {sky130_fd_pr/pfet_01v8.sym} 80 -170 0 0 {name=M4
-W=10.4
+W=11.2
 L=0.8
 nf=1
 mult=1
@@ -148,9 +152,9 @@ model=pfet_01v8
 spiceprefix=X
 }
 C {sky130_fd_pr/nfet_01v8.sym} 370 140 0 0 {name=M6
-W=\{Wp\}
+W=10
 L=0.8
-nf=1 
+nf=10
 mult=1
 ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
 pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
@@ -162,9 +166,9 @@ model=nfet_01v8
 spiceprefix=X
 }
 C {sky130_fd_pr/pfet_01v8.sym} 370 -170 0 0 {name=M7
-W=\{Wp\}
+W=10.4
 L=0.8
-nf=1
+nf=10
 mult=1
 ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
 pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
@@ -198,9 +202,9 @@ C {isource.sym} -290 -90 0 0 {name=I0 value=30u}
 C {gnd.sym} -680 100 0 0 {name=l4 lab=0}
 C {lab_pin.sym} -680 10 0 0 {name=p1 sig_type=std_logic lab=Vdd}
 C {lab_pin.sym} -290 -240 0 0 {name=p2 sig_type=std_logic lab=Vdd}
-C {vsource.sym} -600 70 0 0 {name=V2 value=1.8 savecurrent=false}
+C {vsource.sym} -600 70 0 0 {name=Vp value=0.9 savecurrent=false}
 C {gnd.sym} -600 100 0 0 {name=l5 lab=0}
-C {vsource.sym} -530 70 0 0 {name=V3 value=1.8 savecurrent=false}
+C {vsource.sym} -530 70 0 0 {name=Vn value=0.9 savecurrent=false}
 C {gnd.sym} -530 100 0 0 {name=l6 lab=0}
 C {lab_pin.sym} -600 10 0 0 {name=p3 sig_type=std_logic lab=VinP}
 C {lab_pin.sym} -180 0 0 0 {name=p4 sig_type=std_logic lab=VinP}
@@ -212,3 +216,143 @@ L=1
 model=res_high_po
 spiceprefix=X
 mult=1}
+C {capa.sym} 560 0 0 0 {name=C2
+m=1
+value=5n
+footprint=1206
+device="ceramic capacitor"}
+C {gnd.sym} 560 30 0 0 {name=l7 lab=0}
+C {lab_pin.sym} 540 -110 0 0 {name=p7 sig_type=std_logic lab=Vout}
+C {devices/code_shown.sym} 970 -520 0 0 {name=TESTS
+only_toplevel=true
+value="
+.lib /foss/pdks/sky130A/libs.tech/combined/sky130.lib.spice tt
+
+.control
+* ================= user settings =================
+* name of the supply source and of the load capacitor in your schematic
+set vddsrc = Vdd
+set clname = CL
+let vref = 0.9
+* load capacitances for the stability sweep
+set cllist = ( 0.5p 1p 2p 5p )
+* common-mode voltages for the ICMR test
+set vcmlist = ( 0.6 0.7 0.75 0.8 0.85 0.9 1.0 1.1 1.15 1.2 1.3 )
+* internal names of M1 (input), M3 (mirror) and M5 (tail), as printed by 'show' in test 1
+set m1 = m.xm1.msky130_fd_pr__nfet_01v8_lvt
+set m5 = m.xm5.msky130_fd_pr__nfet_01v8
+* ==================================================
+set color0=white
+set xbrushwidth=2
+
+echo
+echo ========== 1) DC operating point ==========
+alter Vp dc=0.9
+alter Vn dc=0.9
+op
+echo Check every transistor: vds must be larger than vdsat (saturation)
+show m : id vgs vds vdsat gm gds
+let itot_ua = -i($vddsrc)*1e6
+echo Total supply current (uA) = $&itot_ua
+
+echo
+echo ========== 2) Offset, DC transfer, output swing ==========
+alter Vn dc=0.9
+dc Vp 0.88 0.92 1u
+let vin_bal = vref
+meas dc vbal find v(vinp) when v(vout)=0.9
+let vos_mv = (vbal - 0.9)*1e3
+echo Systematic input offset (mV) = $&vos_mv
+let vd    = (v(vinp) - 0.9)*1e3
+let gain  = deriv(v(vout))
+let gaindb = db(abs(gain)+1e-12)
+plot v(vout) vs vd xlabel 'Vp - Vn (mV)' ylabel 'Vout (V)' title 'Open-loop DC transfer'
+plot gaindb vs v(vout) xlimit 0 1.8 xlabel 'Vout (V)' ylabel 'dVout/dVin (dB)' title 'Gain vs output voltage (swing = where it stays high)'
+
+echo
+echo ========== 3) Open-loop AC: A0, GBW, PM, GM ==========
+alter Vp dc=$&vbal
+alter Vp ac=1
+alter Vn ac=0
+ac dec 50 1 1G
+let ph = 180/pi*cph(v(vout))
+meas ac A0db  find vdb(vout) at=1
+meas ac ph1 find ph at=1
+echo Phase at 1 Hz = $&ph1 deg  (must be near 0. Near +-180 means VinP and VinN are swapped)
+meas ac fugf  when vdb(vout)=0
+meas ac phu   find ph at=fugf
+let pm = 180 + phu
+meas ac f180 when ph=-180
+meas ac gmdb find vdb(vout) at=f180
+set a0 = $&A0db
+echo A0 = $&A0db dB, GBW = $&fugf Hz, PM = $&pm deg, GM = $&gmdb dB (negative = margin)
+plot vdb(vout) xlog ylabel 'Gain (dB)' title 'Open-loop gain'
+plot ph xlog ylabel 'Phase (deg)' title 'Open-loop phase'
+
+echo
+echo ========== 4) Stability vs load capacitance ==========
+foreach cl $cllist
+  alter $clname c=$cl
+  ac dec 50 1 1G
+  let ph = 180/pi*cph(v(vout))
+  meas ac fu when vdb(vout)=0
+  meas ac phx find ph at=fu
+  let pmx = 180 + phx
+  echo CL = $cl : GBW = $&fu Hz, PM = $&pmx deg
+end
+alter $clname c=5p
+
+echo
+echo ========== 5) CMRR and PSRR (at 1 Hz) ==========
+alter Vp ac=1
+alter Vn ac=1
+ac dec 20 1 100Meg
+meas ac acm1 find vdb(vout) at=1
+let cmrr = $a0 - acm1
+echo CMRR at 1 Hz = $&cmrr dB
+alter Vp ac=0
+alter Vn ac=0
+alter $vddsrc ac=1
+ac dec 20 1 100Meg
+meas ac avdd1 find vdb(vout) at=1
+let psrr = $a0 - avdd1
+echo PSRR+ at 1 Hz = $&psrr dB
+alter $vddsrc ac=0
+alter Vp ac=1
+
+echo
+echo ========== 6) Input-referred noise ==========
+noise v(vout) Vp dec 20 1 100Meg
+echo current plot: $curplot
+setplot previous
+echo spectrum plot: $curplot
+let vn1k   = inoise_spectrum[60]*1e9
+let vn100k = inoise_spectrum[100]*1e9
+echo Input noise: $&vn1k nV/rtHz at 1 kHz, $&vn100k nV/rtHz at 100 kHz
+plot inoise_spectrum xlog ylog ylabel 'V/sqrt(Hz)' title 'Input-referred noise density'
+
+echo
+echo ========== 7) ICMR: open-loop gain vs common-mode voltage ==========
+foreach vc $vcmlist
+  alter Vn dc=$vc
+  let lo = $vc - 0.03
+  let hi = $vc + 0.03
+  dc Vp $&lo $&hi 2u
+  meas dc vb find v(vinp) when v(vout)=0.9
+  alter Vp dc=$&vb
+  op
+  let mg1 = (@\{$m1\}[vds] - @\{$m1\}[vdsat])*1e3
+  let mg5 = (@\{$m5\}[vds] - @\{$m5\}[vdsat])*1e3
+  let itail = @\{$m5\}[id]*1e6
+  set s1 = $&mg1
+  set s5 = $&mg5
+  set st = $&itail
+  ac lin 1 10 10
+  let a = vdb(vout)
+  echo Vcm = $vc V : A0 = $&a dB, M1 vds-vdsat = $s1 mV, M5 vds-vdsat = $s5 mV, Itail = $st uA
+end
+alter Vn dc=0.9
+.endc
+"
+
+" }
