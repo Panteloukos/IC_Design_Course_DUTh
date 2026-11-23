@@ -33,9 +33,9 @@ C {vsource.sym} -550 -60 0 0 {name=Vdd value=1.8 savecurrent=false}
 C {gnd.sym} -550 -30 0 0 {name=l4 lab=0}
 C {lab_pin.sym} -550 -120 0 0 {name=p1 sig_type=std_logic lab=Vdd}
 C {gnd.sym} -210 70 0 0 {name=l1 lab=0}
-C {vsource.sym} -390 270 0 0 {name=Vin1 value="SINE(0.9 0.005 40k)" savecurrent=false}
+C {vsource.sym} -390 270 0 0 {name=Vin1 value="SINE(0.6 0.005 40k)" savecurrent=false}
 C {gnd.sym} -390 300 0 0 {name=l2 lab=0}
-C {vsource.sym} -580 150 0 0 {name=Vin2 value=0.9 savecurrent=false}
+C {vsource.sym} -580 150 0 0 {name=Vin2 value=0.6 savecurrent=false}
 C {gnd.sym} -580 180 0 0 {name=l3 lab=0
 value="SINE(0.9 -0.05 40k)"}
 C {capa.sym} -250 290 0 0 {name=CL
