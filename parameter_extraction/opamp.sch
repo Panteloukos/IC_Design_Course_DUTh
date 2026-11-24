@@ -260,8 +260,319 @@ footprint=1206
 device="ceramic capacitor"}
 C {gnd.sym} 560 30 0 0 {name=l7 lab=0}
 C {lab_pin.sym} 540 -110 0 0 {name=p7 sig_type=std_logic lab=Vout}
-C {devices/code_shown.sym} 980 -520 0 0 {name=TESTS
+C {devices/code_shown.sym} 2270 -630 0 0 {name=CORNERS
 only_toplevel=true
+value="
+.lib /foss/pdks/sky130A/libs.tech/combined/sky130.lib.spice tt
+.option rshunt=1e12
+ 
+.control
+* ======================= user settings =======================
+* NOTE: ngspice turns the value of every 'set' variable into lower case,
+* so the two file paths are written directly in the lines marked PATH below.
+* process corners, temperatures (C) and supply voltages to sweep
+set corners = ( tt ss ff sf fs )
+set temps   = ( 0 27 85 )
+set vdds    = ( 1.8 )
+* element names in the testbench
+set vddsrc = Vdd
+set clname = CL
+* internal names of the input transistor M1 and the tail M5 (from 'show m')
+set m1 = m.xm1.msky130_fd_pr__nfet_01v8_lvt
+set m5 = m.xm5.msky130_fd_pr__nfet_01v8
+* load capacitance, compensation capacitance (for the SR estimate), ICMR test points
+set clval = 5p
+let cc    = 1.5e-12
+set vcmlo = 0.8
+set vcmhi = 1.1
+* ==============================================================
+ 
+* copy of this netlist up to the code blocks (circuit only, no .lib, no .control)
+echo /begin.user.architecture/q > /tmp/opamp_sed.txt
+echo w /tmp/opamp_core.cir >> /tmp/opamp_sed.txt
+* PATH: the netlist xschem writes for THIS schematic
+shell sed -n -f /tmp/opamp_sed.txt /headless/.xschem/simulations/opamp.spice
+ 
+set labels = ( )
+set l_itot = ( )
+set l_itail = ( )
+set l_sr = ( )
+set l_vos = ( )
+set l_a0 = ( )
+set l_gbw = ( )
+set l_pm = ( )
+set l_gmarg = ( )
+set l_cmrr = ( )
+set l_psrr = ( )
+set l_noise = ( )
+set l_mg1 = ( )
+set l_mg5 = ( )
+ 
+echo
+echo  corner temp VDD : Itot(uA) Itail(uA) SR(V/us) Vos(mV) A0(dB) GBW(MHz) PM(deg) GM(dB) CMRR(dB) PSRR(dB) Vn1k(nV/rtHz) M1marg@hi(mV) M5marg@lo(mV)
+ 
+foreach corner $corners
+  echo * corner wrapper > /tmp/opamp_corner_run.cir
+* PATH: the SKY130 model library
+  echo .lib /foss/pdks/sky130A/libs.tech/combined/sky130.lib.spice $corner >> /tmp/opamp_corner_run.cir
+  echo .include /tmp/opamp_core.cir >> /tmp/opamp_corner_run.cir
+  echo .option rshunt=1e12 >> /tmp/opamp_corner_run.cir
+  echo .end >> /tmp/opamp_corner_run.cir
+  source /tmp/opamp_corner_run.cir
+  alter $clname c=$clval
+  foreach t $temps
+    option temp=$t
+    foreach vs $vdds
+      alter $vddsrc dc=$vs
+      alter $vddsrc ac=0
+      alter Vp ac=0
+      alter Vn ac=0
+      alter Vn dc=0.9
+ 
+* --- operating point and offset (balance the output at 0.9 V)
+      dc Vp 0.85 0.95 5u
+      meas dc vbal find v(vinp) when v(vout)=0.9
+      let vos = (vbal - 0.9)*1e3
+      set r_vos = $&vos
+      alter Vp dc=$&vbal
+      op
+      let itot = -i($vddsrc)*1e6
+      let itail = @\{$m5\}[id]*1e6
+      let sr = @\{$m5\}[id]/cc/1e6
+      set r_itot = $&itot
+      set r_itail = $&itail
+      set r_sr = $&sr
+ 
+* --- open-loop AC
+      alter Vp ac=1
+      ac dec 30 1 1G
+      let ph = 180/pi*cph(v(vout))
+      meas ac a0 find vdb(vout) at=1
+      meas ac fu when vdb(vout)=0
+      meas ac phu find ph at=fu
+      meas ac f180 when ph=-180
+      meas ac g180 find vdb(vout) at=f180
+      let pm = 180 + phu
+      let gbw = fu/1e6
+      let gmarg = -g180
+      set r_a0 = $&a0
+      set r_gbw = $&gbw
+      set r_pm = $&pm
+      set r_gmarg = $&gmarg
+ 
+* --- CMRR and PSRR at 1 Hz
+      alter Vn ac=1
+      ac lin 1 1 1
+      let acm = vdb(vout)
+      let cmrr = $r_a0 - acm
+      set r_cmrr = $&cmrr
+      alter Vp ac=0
+      alter Vn ac=0
+      alter $vddsrc ac=1
+      ac lin 1 1 1
+      let avdd = vdb(vout)
+      let psrr = $r_a0 - avdd
+      set r_psrr = $&psrr
+      alter $vddsrc ac=0
+      alter Vp ac=1
+ 
+* --- input noise at 1 kHz
+      noise v(vout) Vp dec 10 100 10k
+      setplot previous
+      let vn = inoise_spectrum[10]*1e9
+      set r_noise = $&vn
+      alter Vp ac=0
+ 
+* --- ICMR edges: M5 margin at the low Vcm, M1 margin at the high Vcm
+      alter Vn dc=$vcmlo
+      let lo = $vcmlo - 0.05
+      let hi = $vcmlo + 0.05
+      dc Vp $&lo $&hi 10u
+      meas dc vb find v(vinp) when v(vout)=0.9
+      alter Vp dc=$&vb
+      op
+      let mg5 = (@\{$m5\}[vds] - @\{$m5\}[vdsat])*1e3
+      set r_mg5 = $&mg5
+      alter Vn dc=$vcmhi
+      let lo = $vcmhi - 0.05
+      let hi = $vcmhi + 0.05
+      dc Vp $&lo $&hi 10u
+      meas dc vb find v(vinp) when v(vout)=0.9
+      alter Vp dc=$&vb
+      op
+      let mg1 = (@\{$m1\}[vds] - @\{$m1\}[vdsat])*1e3
+      set r_mg1 = $&mg1
+ 
+* --- print this run and store it
+      echo $corner $t $vs : $r_itot $r_itail $r_sr $r_vos $r_a0 $r_gbw $r_pm $r_gmarg $r_cmrr $r_psrr $r_noise $r_mg1 $r_mg5
+      set labels  = ( $labels $corner/\{$t\}C/\{$vs\}V )
+      set l_itot  = ( $l_itot $r_itot )
+      set l_itail = ( $l_itail $r_itail )
+      set l_sr    = ( $l_sr $r_sr )
+      set l_vos   = ( $l_vos $r_vos )
+      set l_a0    = ( $l_a0 $r_a0 )
+      set l_gbw   = ( $l_gbw $r_gbw )
+      set l_pm    = ( $l_pm $r_pm )
+      set l_gmarg = ( $l_gmarg $r_gmarg )
+      set l_cmrr  = ( $l_cmrr $r_cmrr )
+      set l_psrr  = ( $l_psrr $r_psrr )
+      set l_noise = ( $l_noise $r_noise )
+      set l_mg1   = ( $l_mg1 $r_mg1 )
+      set l_mg5   = ( $l_mg5 $r_mg5 )
+      alter Vn dc=0.9
+    end
+  end
+  remcirc
+end
+ 
+* ======================= summary: min and max of every spec =======================
+setplot new
+compose r_itot  values $l_itot
+compose r_itail values $l_itail
+compose r_sr    values $l_sr
+compose r_vos   values $l_vos
+compose r_a0    values $l_a0
+compose r_gbw   values $l_gbw
+compose r_pm    values $l_pm
+compose r_gmarg values $l_gmarg
+compose r_cmrr  values $l_cmrr
+compose r_psrr  values $l_psrr
+compose r_noise values $l_noise
+compose r_mg1   values $l_mg1
+compose r_mg5   values $l_mg5
+echo
+echo ================ SUMMARY over all corners, temperatures and supplies ================
+echo  spec : minimum (where) / maximum (where)
+foreach s itot itail sr vos a0 gbw pm gmarg cmrr psrr noise mg1 mg5
+  let v = r_\{$s\}
+  let idx = vector(length(v)) + 1
+  let vmin = vecmin(v)
+  let vmax = vecmax(v)
+  let kmin = vecmax(idx*(v le vmin))
+  let kmax = vecmax(idx*(v ge vmax))
+  set wmin = $labels[$&kmin]
+  set wmax = $labels[$&kmax]
+  echo $s : $&vmin ( $wmin ) / $&vmax ( $wmax )
+end
+echo
+echo Units: itot, itail uA - sr V/us - vos mV - a0, gmarg, cmrr, psrr dB - gbw MHz - pm deg - noise nV/rtHz at 1 kHz - mg1, mg5 mV (vds-vdsat, must stay positive)
+.endc
+"
+ }
+C {sky130_fd_pr/pfet_01v8.sym} -1120 -150 0 0 {name=MS1
+W=0.5
+L=8
+nf=1
+mult=1
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=pfet_01v8
+spiceprefix=X
+}
+C {sky130_fd_pr/pfet_01v8.sym} -910 -150 0 0 {name=MP1
+W=3.2
+L=0.8
+nf=1
+mult=1
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=pfet_01v8
+spiceprefix=X
+}
+C {sky130_fd_pr/pfet_01v8.sym} -710 -150 0 0 {name=MP2
+W=3.2
+L=0.8
+nf=1
+mult=1
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=pfet_01v8
+spiceprefix=X
+}
+C {lab_pin.sym} -1180 -210 0 0 {name=p8 sig_type=std_logic lab=Vdd}
+C {gnd.sym} -1160 300 0 0 {name=l9 lab=0}
+C {sky130_fd_pr/res_xhigh_po.sym} -860 220 0 0 {name=R9
+W=0.6
+L=1.45
+model=res_xhigh_po
+spiceprefix=X
+ mult=1}
+C {gnd.sym} -1020 300 0 0 {name=l10 lab=0}
+C {gnd.sym} -860 300 0 0 {name=l8 lab=0}
+C {gnd.sym} -690 300 0 0 {name=l11 lab=0}
+C {sky130_fd_pr/nfet_01v8.sym} -1180 220 0 0 {name=MS2
+W=1.6
+L=0.8
+nf=1 
+mult=1
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=nfet_01v8
+spiceprefix=X
+}
+C {sky130_fd_pr/nfet_01v8.sym} -1040 220 0 0 {name=MS3
+W=0.5
+L=0.8
+nf=1 
+mult=1
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=nfet_01v8
+spiceprefix=X
+}
+C {sky130_fd_pr/nfet_01v8.sym} -880 160 0 0 {name=MN2
+W=8
+L=0.8
+nf=1 
+mult=4
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=nfet_01v8
+spiceprefix=X
+}
+C {sky130_fd_pr/nfet_01v8.sym} -710 220 0 0 {name=MN1
+W=8
+L=0.8
+nf=1 
+mult=1
+ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
+pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
+as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
+ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
+nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
+sa=0 sb=0 sd=0
+model=nfet_01v8
+spiceprefix=X
+}
+C {gnd.sym} 230 -100 2 0 {name=l3 lab=0}
+C {gnd.sym} 0 10 0 0 {name=l12 lab=0}
+C {devices/code_shown.sym} 870 -610 0 0 {name=TESTS1
+only_toplevel=true
+spice_ignore = true
 value="
 .lib /foss/pdks/sky130A/libs.tech/combined/sky130.lib.spice tt
 .option rshunt=1e12
@@ -397,114 +708,3 @@ alter Vn dc=0.9
 "
 
 " }
-C {sky130_fd_pr/pfet_01v8.sym} -1120 -150 0 0 {name=MS1
-W=0.5
-L=8
-nf=1
-mult=1
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=pfet_01v8
-spiceprefix=X
-}
-C {sky130_fd_pr/pfet_01v8.sym} -910 -150 0 0 {name=MP1
-W=3.2
-L=0.8
-nf=1
-mult=1
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=pfet_01v8
-spiceprefix=X
-}
-C {sky130_fd_pr/pfet_01v8.sym} -710 -150 0 0 {name=MP2
-W=3.2
-L=0.8
-nf=1
-mult=1
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=pfet_01v8
-spiceprefix=X
-}
-C {lab_pin.sym} -1180 -210 0 0 {name=p8 sig_type=std_logic lab=Vdd}
-C {gnd.sym} -1160 300 0 0 {name=l9 lab=0}
-C {sky130_fd_pr/res_xhigh_po.sym} -860 220 0 0 {name=R9
-W=0.6
-L=1.45
-model=res_xhigh_po
-spiceprefix=X
- mult=1}
-C {gnd.sym} -1020 300 0 0 {name=l10 lab=0}
-C {gnd.sym} -860 300 0 0 {name=l8 lab=0}
-C {gnd.sym} -690 300 0 0 {name=l11 lab=0}
-C {sky130_fd_pr/nfet_01v8.sym} -1180 220 0 0 {name=MS2
-W=1.6
-L=0.8
-nf=1 
-mult=1
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=nfet_01v8
-spiceprefix=X
-}
-C {sky130_fd_pr/nfet_01v8.sym} -1040 220 0 0 {name=MS3
-W=0.5
-L=0.8
-nf=1 
-mult=1
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=nfet_01v8
-spiceprefix=X
-}
-C {sky130_fd_pr/nfet_01v8.sym} -880 160 0 0 {name=MN2
-W=8
-L=0.8
-nf=1 
-mult=4
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=nfet_01v8
-spiceprefix=X
-}
-C {sky130_fd_pr/nfet_01v8.sym} -710 220 0 0 {name=MN1
-W=8
-L=0.8
-nf=1 
-mult=1
-ad="expr('int((@nf + 1)/2) * @W / @nf * 0.29')"
-pd="expr('2*int((@nf + 1)/2) * (@W / @nf + 0.29)')"
-as="expr('int((@nf + 2)/2) * @W / @nf * 0.29')"
-ps="expr('2*int((@nf + 2)/2) * (@W / @nf + 0.29)')"
-nrd="expr('0.29 / @W ')" nrs="expr('0.29 / @W ')"
-sa=0 sb=0 sd=0
-model=nfet_01v8
-spiceprefix=X
-}
-C {gnd.sym} 230 -100 2 0 {name=l3 lab=0}
-C {gnd.sym} 0 10 0 0 {name=l12 lab=0}
